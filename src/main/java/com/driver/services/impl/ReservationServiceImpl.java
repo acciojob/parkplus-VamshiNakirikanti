@@ -44,7 +44,7 @@ public class ReservationServiceImpl implements ReservationService {
             else if (spot.getSpotType() == SpotType.FOUR_WHEELER) wheels = 4;
             else wheels = Integer.MAX_VALUE;
             int price = spot.getPricePerHour()*timeInHours;
-            if(wheels>=numberOfWheels && !spot.isOccupied() && price<minPrice){
+            if(wheels>=numberOfWheels && !spot.getOccupied() && price<minPrice){
                 selectedSpot = spot;
             }
         }
