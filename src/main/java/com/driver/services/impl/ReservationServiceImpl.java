@@ -1,14 +1,12 @@
 package com.driver.services.impl;
 
 import com.driver.model.*;
-import com.driver.repository.ParkingLotRepository;
-import com.driver.repository.ReservationRepository;
-import com.driver.repository.SpotRepository;
-import com.driver.repository.UserRepository;
+import com.driver.repository.*;
 import com.driver.services.ReservationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,48 +20,59 @@ public class ReservationServiceImpl implements ReservationService {
     ReservationRepository reservationRepository3;
     @Autowired
     ParkingLotRepository parkingLotRepository3;
+    @Autowired
+    PaymentRepository paymentRepository;
     @Override
     public Reservation reserveSpot(Integer userId, Integer parkingLotId, Integer timeInHours, Integer numberOfWheels) throws Exception {
-        Optional<User> optionalUser = userRepository3.findById(userId);
-        if(!optionalUser.isPresent()){
-            throw new Exception("Cannot make reservation");
-        }
-        User user = optionalUser.get();
-
-        Optional<ParkingLot> optionalParkingLot = parkingLotRepository3.findById(parkingLotId);
-        if(!optionalParkingLot.isPresent()){
-            throw new Exception("Cannot make reservation");
-        }
-        ParkingLot parkingLot = optionalParkingLot.get();
-
-        Spot selectedSpot = null;
-        int minPrice = Integer.MAX_VALUE;
-        for(Spot spot:parkingLot.getSpotList()){
-            int wheels = 0;
-            if(spot.getSpotType()==SpotType.TWO_WHEELER) wheels = 2;
-            else if (spot.getSpotType() == SpotType.FOUR_WHEELER) wheels = 4;
-            else wheels = Integer.MAX_VALUE;
-            int price = spot.getPricePerHour()*timeInHours;
-            if(wheels>=numberOfWheels && !spot.getOccupied() && price<minPrice){
-                selectedSpot = spot;
-            }
-        }
-        if(selectedSpot==null) {
+        Optional<User> userOptional = userRepository3.findById(userId);
+        Optional<ParkingLot> parkingLotOptional = parkingLotRepository3.findById(parkingLotId);
+        if(!userOptional.isPresent() || !parkingLotOptional.isPresent()){
             return null;
         }
+        List<Spot> spots = parkingLotOptional.get().getSpotList();
+        List<Spot> spotsWithGivenType = new ArrayList<>();
+        for(Spot spot : spots){
+            if(numberOfWheels <= 2){
+                spotsWithGivenType.add(spot);
+            } else if((numberOfWheels == 4) || (numberOfWheels == 3)){
+                if (spot.getSpotType() == SpotType.FOUR_WHEELER || spot.getSpotType() == SpotType.OTHERS){
+                    spotsWithGivenType.add(spot);
+                }
+            } else {
+                if(spot.getSpotType() == SpotType.OTHERS) {
+                    spotsWithGivenType.add(spot);
+                }
+            }
+        }
+        int minPrice = Integer.MAX_VALUE;
+        Spot perfectSpot = null;
+        for(Spot spot : spotsWithGivenType){
+            if(!spot.getOccupied() && spot.getPricePerHour() < minPrice){
+                minPrice = spot.getPricePerHour();
+                perfectSpot = spot;
+            }
+        }
+        if (perfectSpot == null) {
+            return null;
+        }
+
+        perfectSpot.setOccupied(true);
+        Spot savedSpot = spotRepository3.save(perfectSpot);
+
         Reservation reservation = new Reservation();
+        reservation.setSpot(savedSpot);
+        reservation.setUser(userOptional.get());
         reservation.setNumberOfHours(timeInHours);
-        reservation.setSpot(selectedSpot);
-        reservation.setUser(user);
 
         Reservation savedReservation = reservationRepository3.save(reservation);
-
-        selectedSpot.getReservationList().add(savedReservation);
-        selectedSpot.setOccupied(true);
-        spotRepository3.save(selectedSpot);
-
-        user.getReservationList().add(savedReservation);
-        userRepository3.save(user);
+        Payment payment = new Payment();
+        payment.setPaymentCompleted(false);
+        payment.setReservation(savedReservation);
+        paymentRepository.save(payment);
+        savedReservation.setPayment(payment);
+        userOptional.get().getReservationList().add(savedReservation);
+        userRepository3.save(userOptional.get());
+        savedSpot.getReservationList().add(savedReservation);
 
         return savedReservation;
     }

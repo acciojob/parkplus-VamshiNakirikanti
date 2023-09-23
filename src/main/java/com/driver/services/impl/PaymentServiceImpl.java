@@ -9,6 +9,8 @@ import com.driver.services.PaymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 public class PaymentServiceImpl implements PaymentService {
     @Autowired
@@ -18,31 +20,32 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public Payment pay(Integer reservationId, int amountSent, String mode) throws Exception {
-        Reservation reservation = reservationRepository2.findById(reservationId).get();
-        int requiredAmount = reservation.getNumberOfHours()*reservation.getSpot().getPricePerHour();
-        if(amountSent<requiredAmount){
-            throw new Exception("Insufficient Amount");
+        Optional<Reservation> reservationOptional = reservationRepository2.findById(reservationId);
+        Reservation reservation = reservationOptional.get();
+        int amountDue = reservation.getNumberOfHours() * reservation.getSpot().getPricePerHour();
+        if(amountSent < amountDue){
+            return null;
         }
-        mode = mode.toUpperCase();
-        PaymentMode paymentMode;
-        if(mode.equals(PaymentMode.CARD.toString()) || mode.equals(PaymentMode.UPI.toString()) || mode.equals(PaymentMode.CASH.toString())){
-            throw new Exception("Payment mode not detected");
+        String MODE = mode.toUpperCase();
+        String cash = PaymentMode.CASH.name();
+        String upi = PaymentMode.UPI.name();
+        String card = PaymentMode.CARD.name();
+        if(!MODE.equals(cash) && !MODE.equals(upi) && !MODE.equals(card)){
+            return null;
         }
-        else{
-            if(mode=="CARD") paymentMode = PaymentMode.CARD;
-            else if(mode=="CASH") paymentMode = PaymentMode.CASH;
-            else paymentMode = PaymentMode.UPI;
+        PaymentMode paymentMode = null;
+        if(MODE.equals(cash)){
+            paymentMode = PaymentMode.CASH;
+        } else if(MODE.equals(card)){
+            paymentMode = PaymentMode.CARD;
+        } else {
+            paymentMode = PaymentMode.UPI;
         }
-        Payment payment = new Payment();
+        Payment payment = reservation.getPayment();
         payment.setPaymentCompleted(true);
         payment.setPaymentMode(paymentMode);
-        payment.setReservation(reservation);
-
         Payment savedPayment = paymentRepository2.save(payment);
-
-        reservation.setPayment(savedPayment);
         reservationRepository2.save(reservation);
-
-        return savedPayment;
+        return  savedPayment;
     }
 }
