@@ -49,7 +49,7 @@ public class ReservationServiceImpl implements ReservationService {
             }
         }
         if(selectedSpot==null) {
-            throw new Exception("Cannot make reservation");
+            return null;
         }
         Reservation reservation = new Reservation();
         reservation.setNumberOfHours(timeInHours);
